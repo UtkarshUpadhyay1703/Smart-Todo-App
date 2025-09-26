@@ -14,11 +14,65 @@ struct TaskListView: View {
     
     @State private var showingForm: Bool = false
     @State private var editingTask: Task?
+    @State private var filter: TaskFilter = .all
+    @State private var searchText = ""
+    @State private var sortByPriority = false
+    
+    var filteredTasks: [Task] {
+        var result = tasks
+        
+        //Filter
+        switch filter {
+        case .pending: result = result.filter{ !$0.isCompleted }
+        case .completed: result = result.filter{ $0.isCompleted }
+        default: break
+        }
+        
+        //Search
+        if !searchText.isEmpty {
+            result = result.filter{ $0.title.localizedCaseInsensitiveContains(searchText) || $0.detail?.localizedCaseInsensitiveContains(searchText) ?? false }
+        }
+        
+        //Sort
+        if sortByPriority {
+            result = result.sorted{ $0.priority.rawValue > $1.priority.rawValue }
+        } else {
+            result = result.sorted { $0.createdAt > $1.createdAt }
+        }
+        
+        return result
+    }
     
     var body: some View {
         NavigationStack {
+            VStack {
+                //Counter
+                Text("Pending: \(tasks.filter{ !$0.isCompleted }.count) / Completed: \(tasks.filter{ $0.isCompleted }.count)")
+                    .font(.caption)
+                    .padding(.vertical, 4)
+                
+                //Filter Picker
+                HStack {
+                    Picker("Filter", selection: $filter) {
+                        ForEach(TaskFilter.allCases, id: \.self) { option in
+                            Text(option.rawValue).tag(option)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.leading)
+                    
+                    //Sorting in ascending and descending order.
+                    Button {
+                        sortByPriority.toggle()
+                    } label: {
+                        Label("", systemImage: sortByPriority ? "arrow.up" : "arrow.down")
+                    }
+                }
+            }
+            
             List {
-                ForEach(tasks) { task in
+                //List all the filtered and sorted tasks.
+                ForEach(filteredTasks) { task in
                     HStack {
                         Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
                             .onTapGesture {
@@ -43,6 +97,7 @@ struct TaskListView: View {
                 .onDelete(perform: deleteTasks)
             }
             .navigationTitle("Todo List")
+            .searchable(text: $searchText)
             .toolbar {
                 ToolbarItem {
                     Button(action: { showingForm = true }) {
@@ -66,7 +121,7 @@ struct TaskListView: View {
     private func deleteTasks(offsets: IndexSet) {
         withAnimation {
             for index in offsets {
-                modelContext.delete(tasks[index])
+                modelContext.delete(filteredTasks[index])
                 try? modelContext.save()
             }
         }

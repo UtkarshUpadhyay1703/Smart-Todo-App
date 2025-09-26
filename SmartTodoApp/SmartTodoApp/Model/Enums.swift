@@ -32,3 +32,11 @@ enum Priority: Int, Codable, CaseIterable {
         }
     }
 }
+
+enum TaskFilter: String, CaseIterable, Codable {
+    case all = "All"
+    case completed = "Completed"
+    case pending = "Pending"
+    
+    var id: String { rawValue }
+}
