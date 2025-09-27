@@ -69,12 +69,15 @@ struct TaskListView: View {
                     }
                 }
             }
-            
+            if filteredTasks.isEmpty {
+                EmptyStateView()
+            } else {
             List {
                 //List all the filtered and sorted tasks.
                 ForEach(filteredTasks) { task in
                     HStack {
                         Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(task.isCompleted ? .gray : task.priority.color)
                             .onTapGesture {
                                 task.isCompleted.toggle()
                                 try? modelContext.save()
@@ -82,12 +85,42 @@ struct TaskListView: View {
                         VStack(alignment: .leading) {
                             Text(task.title)
                                 .strikethrough(task.isCompleted)
-                            if let due = task.dueDate {
-                                Text("Due: \(due.formatted(date: .abbreviated, time: .omitted))")
-                                    .font(.caption)
-                                    .foregroundStyle(due < Date() && !task.isCompleted ? .red : .secondary)
+                            
+                            HStack {
+                                if let due = task.dueDate {
+                                    Text("Due: \(due.formatted(date: .abbreviated, time: .omitted))")
+                                        .font(.caption)
+                                        .foregroundStyle(due < Date() && !task.isCompleted ? .red : .secondary)
+                                    if due < Date(), !task.isCompleted {
+                                        Label("Overdue", systemImage: "exclamationmark.triangle.fill")
+                                            .font(.caption2)
+                                            .foregroundStyle(.red)
+                                        //UU: Reduce gap.
+                                    }
+                                }
+                            }
+                            
+                            if !task.tags.isEmpty {
+                                HStack {
+                                    ForEach(task.tags, id: \.self) { tag in
+                                        Text(tag)
+                                            .font(.caption2)
+                                            .padding(4)
+                                            .background(Color.blue.opacity(0.2))
+                                            .clipShape(Capsule())
+                                    }
+                                }
                             }
                         }
+                        
+                        Spacer()
+                        
+                        // Badge for priority
+                        Text(task.priority.label)
+                            .font(.caption2)
+                            .padding(6)
+                            .background(task.priority.color.opacity(0.2))
+                            .clipShape(Capsule())
                     }
                     .contentShape(Rectangle())
                     .onTapGesture {
@@ -98,13 +131,18 @@ struct TaskListView: View {
             }
             .navigationTitle("Todo List")
             .searchable(text: $searchText)
-            .toolbar {
-                ToolbarItem {
-                    Button(action: { showingForm = true }) {
-                        Label("Add Item", systemImage: "plus")
-                    }
+            .overlay(alignment: .bottomTrailing, content: {
+                Button(action: { showingForm = true }) {
+                    Label("", systemImage: "plus")
+                        .font(.largeTitle)
                 }
-            }
+                .background {
+                    Circle()
+                        .opacity(0.2)
+                        .frame(width: 50, height: 50, alignment: .center)
+                }
+                .padding()
+            })
             .sheet(isPresented: $showingForm) {
                 TaskFormView(task: Task(title: ""), isNew: true)
             }
@@ -112,6 +150,7 @@ struct TaskListView: View {
                 TaskFormView(task: task)
             }
         }
+    }
         .onAppear {
             let allTasks = try! modelContext.fetch(FetchDescriptor<Task>())
             print("Total tasks: \(allTasks.count)")
@@ -127,6 +166,24 @@ struct TaskListView: View {
         }
     }
 }
+
+struct EmptyStateView: View {
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "list.bullet.clipboard")
+                .font(.system(size: 48))
+                .foregroundColor(.gray)
+            Text("No tasks found")
+                .font(.headline)
+                .foregroundColor(.secondary)
+            Text("Tap + to add a new task")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+        }
+        .padding()
+    }
+}
+
 
 #Preview {
     TaskListView()

@@ -35,6 +35,10 @@ struct TaskFormView: View {
                     DatePicker("Due Date", selection: Binding($task.dueDate, default: Date()), displayedComponents: .date)
                         .datePickerStyle(.compact)
                 }
+                
+                Section("Tags") {
+                    TagEditorView(tags: $task.tags)
+                }
             }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

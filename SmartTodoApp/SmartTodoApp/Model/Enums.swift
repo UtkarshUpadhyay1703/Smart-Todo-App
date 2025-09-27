@@ -6,18 +6,19 @@
 //
 
 import Foundation
+import SwiftUICore
 
 enum Priority: Int, Codable, CaseIterable {
     case low, medium, high
     
-    var color: String {
+    var color: Color {
         switch self {
         case .low:
-            return "green"
+            return .green
         case .medium:
-            return "orange"
+            return .orange
         case .high:
-            return "red"
+            return .red
         }
     }
     
