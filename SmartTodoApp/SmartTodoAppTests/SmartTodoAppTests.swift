@@ -6,31 +6,126 @@
 //
 
 import XCTest
+import SwiftData
 @testable import SmartTodoApp
 
 final class SmartTodoAppTests: XCTestCase {
-
-    override func setUpWithError() throws {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
-    }
-
-    override func tearDownWithError() throws {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
-    }
-
-    func testExample() throws {
-        // This is an example of a functional test case.
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
-        // Any test you write for XCTest can be annotated as throws and async.
-        // Mark your test throws to produce an unexpected failure when your test encounters an uncaught error.
-        // Mark your test async to allow awaiting for asynchronous code to complete. Check the results with assertions afterwards.
-    }
-
-    func testPerformanceExample() throws {
-        // This is an example of a performance test case.
-        self.measure {
-            // Put the code you want to measure the time of here.
+    var container: ModelContainer!
+    var context: ModelContext?
+    var viewModel:TaskListViewModel!
+    
+    @MainActor
+    override func setUp() {
+        super.setUp()
+        do {
+            container = try ModelContainer(for: Task.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+            context = container.mainContext
+            viewModel = TaskListViewModel(context: context!)
+        } catch {
+            XCTFail("Failed to create in-memory SwiftData container: \(error)")
         }
     }
-
+    
+    override func tearDown() {
+        container = nil
+        context = nil
+        viewModel = nil
+        super.tearDown()
+    }
+    
+    // MARK: Persistence Tests
+    
+    func testAddTaskPersists() throws {
+        let task = Task(title: "Buy me a cofee", priority: .high)
+        context?.insert(task)
+        try context?.save()
+        
+        let tasks = try context?.fetch(FetchDescriptor<Task>())
+        XCTAssertEqual(tasks?.count, 1)
+        XCTAssertEqual(tasks?.first?.title, "Buy me a cofee")
+    }
+    
+    func testDeleteTaskRemovesIt() throws {
+        let task = Task(title: "Walk a dog")
+        context?.insert(task)
+        try context?.save()
+        
+        context?.delete(task)
+        try context?.save()
+        
+        let tasks = try context?.fetch(FetchDescriptor<Task>())
+        XCTAssertTrue(tasks?.isEmpty ?? true)
+        XCTAssertEqual(tasks?.count, 0)
+    }
+    
+    // MARK: - Business Logic Tests
+        
+        func testFilterPendingTasks() {
+            let t1 = Task(title: "Pending Task 1")
+            let t2 = Task(title: "Completed Task")
+            t2.isCompleted = true
+            
+            let tasks = [t1, t2]
+            viewModel.filter = .pending
+            
+            let result = viewModel.filteredTasks(allTasks: tasks)
+            XCTAssertEqual(result.count, 1)
+            XCTAssertEqual(result.first?.title, "Pending Task 1")
+        }
+        
+        func testFilterCompletedTasks() {
+            let t1 = Task(title: "Pending Task")
+            let t2 = Task(title: "Completed Task")
+            t2.isCompleted = true
+            
+            let tasks = [t1, t2]
+            viewModel.filter = .completed
+            
+            let result = viewModel.filteredTasks(allTasks: tasks)
+            XCTAssertEqual(result.count, 1)
+            XCTAssertEqual(result.first?.title, "Completed Task")
+        }
+        
+        func testSearchTasks() {
+            let t1 = Task(title: "Buy milk")
+            let t2 = Task(title: "Walk the dog")
+            
+            let tasks = [t1, t2]
+            viewModel.searchText = "dog"
+            
+            let result = viewModel.filteredTasks(allTasks: tasks)
+            XCTAssertEqual(result.count, 1)
+            XCTAssertEqual(result.first?.title, "Walk the dog")
+        }
+        
+        func testSortByPriority() {
+            let low = Task(title: "Low Priority", priority: .low)
+            let high = Task(title: "High Priority", priority: .high)
+            
+            let tasks = [low, high]
+            viewModel.sortByPriority = true
+            
+            let result = viewModel.filteredTasks(allTasks: tasks)
+            XCTAssertEqual(result.first?.priority, .high)
+        }
+        
+        func testTaskCounters() {
+            let t1 = Task(title: "Pending Task")
+            let t2 = Task(title: "Completed Task")
+            t2.isCompleted = true
+            
+            let tasks = [t1, t2]
+            
+            XCTAssertEqual(viewModel.pendingCount(tasks), 1)
+            XCTAssertEqual(viewModel.completedCount(tasks), 1)
+        }
+        
+        func testOverdueIndicatorLogic() {
+            let overdue = Task(title: "Late Task", dueDate: Date().addingTimeInterval(-3600))
+            overdue.isCompleted = false
+            let upcoming = Task(title: "Future Task", dueDate: Date().addingTimeInterval(3600))
+            
+            XCTAssertTrue(overdue.dueDate! < Date())
+            XCTAssertFalse(upcoming.dueDate! < Date())
+        }
 }

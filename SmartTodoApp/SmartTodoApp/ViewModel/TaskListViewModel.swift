@@ -32,6 +32,7 @@ class TaskListViewModel: ObservableObject {
         try? context.save()
     }
     
+    //Testable
     func filteredTasks(allTasks: [Task]) -> [Task] {
         var result = allTasks
         

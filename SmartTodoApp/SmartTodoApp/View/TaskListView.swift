@@ -41,6 +41,7 @@ struct TaskListView: View {
                         ForEach(viewModel.filteredTasks(allTasks: allTasks)) { task in
                             HStack {
                                 Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                                    .accessibilityLabel(task.isCompleted ? "Completed" : "Pending")
                                     .foregroundColor(task.isCompleted ? .gray : task.priority.color)
                                     .onTapGesture {
                                         viewModel.toggleCompletion(task)
