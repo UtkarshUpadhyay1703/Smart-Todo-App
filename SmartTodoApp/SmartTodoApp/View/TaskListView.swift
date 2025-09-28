@@ -9,140 +9,86 @@ import SwiftUI
 import SwiftData
 
 struct TaskListView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query(sort: \Task.createdAt, order: .reverse) private var tasks: [Task]
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.modelContext) private var context
+    @Query(sort: \Task.createdAt, order: .reverse) private var allTasks: [Task]
     
     @State private var showingForm: Bool = false
     @State private var editingTask: Task?
-    @State private var filter: TaskFilter = .all
-    @State private var searchText = ""
-    @State private var sortByPriority = false
     
-    var filteredTasks: [Task] {
-        var result = tasks
-        
-        //Filter
-        switch filter {
-        case .pending: result = result.filter{ !$0.isCompleted }
-        case .completed: result = result.filter{ $0.isCompleted }
-        default: break
-        }
-        
-        //Search
-        if !searchText.isEmpty {
-            result = result.filter{ $0.title.localizedCaseInsensitiveContains(searchText) || $0.detail?.localizedCaseInsensitiveContains(searchText) ?? false }
-        }
-        
-        //Sort
-        if sortByPriority {
-            result = result.sorted{ $0.priority.rawValue > $1.priority.rawValue }
-        } else {
-            result = result.sorted { $0.createdAt > $1.createdAt }
-        }
-        
-        return result
-    }
+    @StateObject private var viewModel: TaskListViewModel = TaskListViewModel()
     
     var body: some View {
         NavigationStack {
             VStack {
-                //Counter
-                Text("Pending: \(tasks.filter{ !$0.isCompleted }.count) / Completed: \(tasks.filter{ $0.isCompleted }.count)")
+                Text("Pending: \(viewModel.pendingCount(allTasks)) / Completed: \(viewModel.completedCount(allTasks))")
                     .font(.caption)
                     .padding(.vertical, 4)
                 
-                //Filter Picker
-                HStack {
-                    Picker("Filter", selection: $filter) {
-                        ForEach(TaskFilter.allCases, id: \.self) { option in
-                            Text(option.rawValue).tag(option)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .padding(.leading)
-                    
-                    //Sorting in ascending and descending order.
-                    Button {
-                        sortByPriority.toggle()
-                    } label: {
-                        Label("", systemImage: sortByPriority ? "arrow.up" : "arrow.down")
+                Picker("Filter", selection: $viewModel.filter) {
+                    ForEach(TaskFilter.allCases, id: \.self) { option in
+                        Text(option.rawValue).tag(option)
                     }
                 }
-            }
-            if filteredTasks.isEmpty {
-                EmptyStateView()
-            } else {
-            List {
-                //List all the filtered and sorted tasks.
-                ForEach(filteredTasks) { task in
-                    HStack {
-                        Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(task.isCompleted ? .gray : task.priority.color)
-                            .onTapGesture {
-                                task.isCompleted.toggle()
-                                try? modelContext.save()
-                            }
-                        VStack(alignment: .leading) {
-                            Text(task.title)
-                                .strikethrough(task.isCompleted)
-                            
+                .pickerStyle(.segmented)
+                .padding(.horizontal)
+                
+                if viewModel.filteredTasks(allTasks: allTasks).isEmpty {
+                    EmptyStateView()
+                    Spacer()
+                } else {
+                    List {
+                        ForEach(viewModel.filteredTasks(allTasks: allTasks)) { task in
                             HStack {
-                                if let due = task.dueDate {
-                                    Text("Due: \(due.formatted(date: .abbreviated, time: .omitted))")
-                                        .font(.caption)
-                                        .foregroundStyle(due < Date() && !task.isCompleted ? .red : .secondary)
-                                    if due < Date(), !task.isCompleted {
-                                        Label("Overdue", systemImage: "exclamationmark.triangle.fill")
-                                            .font(.caption2)
-                                            .foregroundStyle(.red)
-                                        //UU: Reduce gap.
+                                Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                                    .foregroundColor(task.isCompleted ? .gray : task.priority.color)
+                                    .onTapGesture {
+                                        viewModel.toggleCompletion(task)
+                                    }
+                                
+                                VStack(alignment: .leading) {
+                                    Text(task.title)
+                                        .strikethrough(task.isCompleted)
+                                    if let due = task.dueDate {
+                                        Text("Due: \(due.formatted(date: .abbreviated, time: .omitted))")
+                                            .font(.caption)
+                                            .foregroundStyle(due < Date() && !task.isCompleted ? .red : .secondary)
                                     }
                                 }
+                                
+                                Spacer()
+                                
+                                Text(task.priority.label)
+                                    .font(.caption2)
+                                    .padding(6)
+                                    .background(task.priority.color.opacity(0.2))
+                                    .clipShape(Capsule())
                             }
-                            
-                            if !task.tags.isEmpty {
-                                HStack {
-                                    ForEach(task.tags, id: \.self) { tag in
-                                        Text(tag)
-                                            .font(.caption2)
-                                            .padding(4)
-                                            .background(Color.blue.opacity(0.2))
-                                            .clipShape(Capsule())
-                                    }
-                                }
-                            }
+                            .contentShape(Rectangle())
+                            .onTapGesture { editingTask = task }
                         }
-                        
-                        Spacer()
-                        
-                        // Badge for priority
-                        Text(task.priority.label)
-                            .font(.caption2)
-                            .padding(6)
-                            .background(task.priority.color.opacity(0.2))
-                            .clipShape(Capsule())
-                    }
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        editingTask = task
+                        .onDelete { indexSet in
+                            indexSet.map { viewModel.filteredTasks(allTasks: allTasks)[$0] }
+                                .forEach(viewModel.delete)
+                        }
                     }
                 }
-                .onDelete(perform: deleteTasks)
             }
             .navigationTitle("Todo List")
-            .searchable(text: $searchText)
-            .overlay(alignment: .bottomTrailing, content: {
-                Button(action: { showingForm = true }) {
-                    Label("", systemImage: "plus")
-                        .font(.largeTitle)
+            .searchable(text: $viewModel.searchText)
+            .toolbar {
+                ToolbarItemGroup(placement: .navigationBarTrailing) {
+                    Button {
+                        viewModel.sortByPriority.toggle()
+                    } label: {
+                        Label("Sort", systemImage: viewModel.sortByPriority ? "arrow.up.arrow.down.circle.fill" : "arrow.up.arrow.down.circle")
+                    }
+                    
+                    Button { showingForm = true } label: {
+                        Label("Add Task", systemImage: "plus")
+                    }
                 }
-                .background {
-                    Circle()
-                        .opacity(0.2)
-                        .frame(width: 50, height: 50, alignment: .center)
-                }
-                .padding()
-            })
+            }
             .sheet(isPresented: $showingForm) {
                 TaskFormView(task: Task(title: ""), isNew: true)
             }
@@ -150,22 +96,17 @@ struct TaskListView: View {
                 TaskFormView(task: task)
             }
         }
-    }
         .onAppear {
-            let allTasks = try! modelContext.fetch(FetchDescriptor<Task>())
-            print("Total tasks: \(allTasks.count)")
+            viewModel.context = context
         }
-    }
-    
-    private func deleteTasks(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(filteredTasks[index])
-                try? modelContext.save()
+        .onChange(of: scenePhase) { _ , newPhase in
+            if newPhase == .background {
+                try? context.save()
             }
         }
     }
 }
+
 
 struct EmptyStateView: View {
     var body: some View {

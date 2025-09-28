@@ -12,6 +12,8 @@ struct TaskFormView: View {
     @Environment(\.modelContext) private var modelContext
     
     @Bindable var task: Task
+    @State private var showAlert: Bool = false
+    
     var isNew: Bool = false
     
     var body: some View {
@@ -43,9 +45,12 @@ struct TaskFormView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        if isNew {
-                            modelContext.insert(task)
+                        guard !task.title.isEmpty else {
+                            showAlert = true
+                            return
                         }
+                        
+                        if isNew { modelContext.insert(task) }
                         try? modelContext.save()
                         dismiss()
                     }
@@ -53,6 +58,11 @@ struct TaskFormView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
+            }
+            .alert("Title Required", isPresented: $showAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("Please enter a task title before saving.")
             }
         }
     }

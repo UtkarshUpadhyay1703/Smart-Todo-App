@@ -5,8 +5,7 @@
 //  Created by Utkarsh Upadhyay on 24/09/25.
 //
 
-import Foundation
-import SwiftUICore
+import SwiftUI
 
 enum Priority: Int, Codable, CaseIterable {
     case low, medium, high
