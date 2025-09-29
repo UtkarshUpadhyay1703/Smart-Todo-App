@@ -30,3 +30,15 @@ class Task {
         self.tags = tags
     }
 }
+
+extension String {
+    func truncated(to length: Int) -> String {
+        if self.count > length {
+            let endIndex = self.index(self.startIndex, offsetBy: length)
+            return String(self[..<endIndex]) + "..."
+        } else {
+            return self
+        }
+    }
+}
+

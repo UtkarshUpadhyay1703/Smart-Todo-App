@@ -23,8 +23,10 @@ class TaskListViewModel: ObservableObject {
     }
     
     func toggleCompletion(_ task: Task) {
-        task.isCompleted.toggle()
-        try? context.save()
+        withAnimation(.spring()) {
+            task.isCompleted.toggle()
+            try? context.save()
+        }
     }
     
     func delete(_ task: Task) {

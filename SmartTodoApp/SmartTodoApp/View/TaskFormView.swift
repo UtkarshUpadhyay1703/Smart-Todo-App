@@ -18,29 +18,38 @@ struct TaskFormView: View {
     
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Details") {
-                    TextField("Title", text: $task.title)
-                    TextField("Description", text: Binding($task.detail, default: ""))
-                }
+            ZStack {
+                LinearGradient(colors: [.yellow.opacity(0.45), .green.opacity(0.25)],
+                               startPoint: .topLeading,
+                               endPoint: .bottomTrailing)
+                .ignoresSafeArea()
                 
-                Section("Priority") {
-                    Picker("Priority", selection: $task.priority) {
-                        ForEach(Priority.allCases, id: \.self) { priority in
-                            Text(priority.label).tag(priority)
-                        }
+                Form {
+                    Section("Details") {
+                        TextField("Title", text: $task.title)
+                        TextField("Description", text: Binding($task.detail, default: ""))
                     }
-                    .pickerStyle(.segmented)
+                    
+                    Section("Priority") {
+                        Picker("Priority", selection: $task.priority) {
+                            ForEach(Priority.allCases, id: \.self) { priority in
+                                Text(priority.label).tag(priority)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                    
+                    Section("Due Date") {
+                        DatePicker("Due Date", selection: Binding($task.dueDate, default: Date()), displayedComponents: .date)
+                            .datePickerStyle(.compact)
+                    }
+                    
+                    Section("Tags") {
+                        TagEditorView(tags: $task.tags)
+                    }
                 }
-                
-                Section("Due Date") {
-                    DatePicker("Due Date", selection: Binding($task.dueDate, default: Date()), displayedComponents: .date)
-                        .datePickerStyle(.compact)
-                }
-                
-                Section("Tags") {
-                    TagEditorView(tags: $task.tags)
-                }
+                .scrollContentBackground(.hidden)
+                .background(Color.clear)
             }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
